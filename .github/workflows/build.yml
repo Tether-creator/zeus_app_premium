@@ -1,39 +1,130 @@
+name: ZEUS CI/CD (Web + Android + iOS)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+env:
+  FLUTTER_CHANNEL: stable
+  BASE_HREF: "/zeus_app_premium/"
+
+# ----------------------------
+# 1) WEB: build & deploy
+# ----------------------------
+jobs:
+  web-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+
+      - name: Ensure web scaffold exists safely
+        shell: bash
+        run: |
+          if [ ! -d "web" ]; then
+            flutter create . --platforms=web
+          fi
+          # protect app code if flutter ever touches lib/
+          git restore --source=HEAD -- lib || true
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Build Web (GitHub Pages base href)
+        run: flutter build web --release --base-href "${{ env.BASE_HREF }}"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: web-build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+# ----------------------------
+# 2) ANDROID: robust debug APK
+# ----------------------------
   android-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Java 17 (AGP requirement)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: subosito/flutter-action@v2
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          channel: ${{ env.FLUTTER_CHANNEL }}
 
-      - name: Clean Gradle & Flutter cache
+      - name: Doctor (pre)
+        run: flutter doctor -v
+
+      - name: Accept Android licenses
+        run: yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses
+
+      - name: Clean Gradle & Flutter caches
         run: |
           flutter clean
-          rm -rf android/.gradle
-          rm -rf ~/.gradle/caches/
-          rm -rf ~/.pub-cache
+          rm -rf android/.gradle || true
+          rm -rf ~/.gradle/caches/ || true
+          rm -rf ~/.pub-cache || true
 
       - name: Recreate Android scaffold (safe overwrite)
+        shell: bash
         run: |
           cp -r lib lib_backup 2>/dev/null || true
           flutter create . --platforms=android --overwrite
+          # restore app code in case anything touched lib/
           git restore --source=HEAD -- lib || true
           [ -d lib_backup ] && cp -rn lib_backup/* lib/ 2>/dev/null || true
           rm -rf lib_backup
           chmod +x android/gradlew || true
 
+      - name: Force minSdkVersion 21 (if template differs)
+        shell: bash
+        run: |
+          if [ -f android/app/build.gradle ]; then
+            sed -i 's/minSdkVersion *[0-9][0-9]*/minSdkVersion 21/g' android/app/build.gradle || true
+          fi
+
+      - name: Gradle sanity
+        run: |
+          ./android/gradlew -v || true
+
       - name: Pub get
         run: flutter pub get
 
-      - name: Build Debug APK
-        run: flutter build apk --debug --stacktrace --verbose
+      - name: Build Debug APK (verbose)
+        run: flutter build apk --debug --stacktrace -v
 
       - name: Upload APK artifact (14 days)
         uses: actions/upload-artifact@v4
@@ -41,3 +132,36 @@
           name: zeus_app_premium-debug.apk
           path: build/app/outputs/flutter-apk/app-debug.apk
           retention-days: 14
+
+      - name: Doctor (post)
+        if: always()
+        run: flutter doctor -v
+
+# ----------------------------
+# 3) iOS: compile check (no signing)
+# ----------------------------
+  ios-build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_CHANNEL }}
+
+      - name: Recreate iOS scaffold (safe overwrite)
+        shell: bash
+        run: |
+          cp -r lib lib_backup 2>/dev/null || true
+          flutter create . --platforms=ios --overwrite
+          git restore --source=HEAD -- lib || true
+          [ -d lib_backup ] && cp -rn lib_backup/* lib/ 2>/dev/null || true
+          rm -rf lib_backup
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Build iOS (no codesign)
+        run: flutter build ios --no-codesign
