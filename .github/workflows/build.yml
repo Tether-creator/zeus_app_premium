@@ -122,7 +122,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Debug APK (verbose)
-        run: flutter build apk --debug --stacktrace -v
+        run: flutter build apk --debug -v
 
       - name: Upload APK artifact (14 days)
         uses: actions/upload-artifact@v4
