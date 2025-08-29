@@ -18,10 +18,10 @@ env:
   FLUTTER_CHANNEL: stable
   BASE_HREF: "/zeus_app_premium/"
 
-# ----------------------------
-# 1) WEB: build & deploy
-# ----------------------------
 jobs:
+  # =========================
+  # Web: Build & Deploy
+  # =========================
   web-build:
     runs-on: ubuntu-latest
     steps:
@@ -39,7 +39,6 @@ jobs:
           if [ ! -d "web" ]; then
             flutter create . --platforms=web
           fi
-          # protect app code if flutter ever touches lib/
           git restore --source=HEAD -- lib || true
 
       - name: Pub get
@@ -65,9 +64,9 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-# ----------------------------
-# 2) ANDROID: robust debug APK
-# ----------------------------
+  # =========================
+  # Android: Robust Debug APK
+  # =========================
   android-build:
     runs-on: ubuntu-latest
     steps:
@@ -80,6 +79,10 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Proper Android SDK install + license acceptance
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -87,9 +90,6 @@ jobs:
 
       - name: Doctor (pre)
         run: flutter doctor -v
-
-      - name: Accept Android licenses
-        run: yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses
 
       - name: Clean Gradle & Flutter caches
         run: |
@@ -103,7 +103,6 @@ jobs:
         run: |
           cp -r lib lib_backup 2>/dev/null || true
           flutter create . --platforms=android --overwrite
-          # restore app code in case anything touched lib/
           git restore --source=HEAD -- lib || true
           [ -d lib_backup ] && cp -rn lib_backup/* lib/ 2>/dev/null || true
           rm -rf lib_backup
@@ -117,8 +116,7 @@ jobs:
           fi
 
       - name: Gradle sanity
-        run: |
-          ./android/gradlew -v || true
+        run: ./android/gradlew -v || true
 
       - name: Pub get
         run: flutter pub get
@@ -137,9 +135,9 @@ jobs:
         if: always()
         run: flutter doctor -v
 
-# ----------------------------
-# 3) iOS: compile check (no signing)
-# ----------------------------
+  # =========================
+  # iOS: Compile (no codesign)
+  # =========================
   ios-build:
     runs-on: macos-latest
     steps:
