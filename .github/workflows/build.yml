@@ -1,165 +1,148 @@
-name: ZEUS CI/CD (Web + Android + iOS)
+name: ZEUS CI/CD (Android + iOS + Web)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
+  id-token: write        # needed for pages deploy
+  pages: write           # needed for pages deploy
 
 concurrency:
-  group: "pages"
+  group: zeus-build-${{ github.ref }}
   cancel-in-progress: false
 
 env:
-  FLUTTER_CHANNEL: stable
-  BASE_HREF: "/zeus_app_premium/"
+  FLUTTER_VERSION: stable
+  JAVA_VERSION: '17'
+  ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
 
 jobs:
-  # =========================
-  # Web: Build & Deploy
-  # =========================
-  web-build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: ${{ env.FLUTTER_CHANNEL }}
-
-      - name: Ensure web scaffold exists safely
-        shell: bash
-        run: |
-          if [ ! -d "web" ]; then
-            flutter create . --platforms=web
-          fi
-          git restore --source=HEAD -- lib || true
-
-      - name: Pub get
-        run: flutter pub get
-
-      - name: Build Web (GitHub Pages base href)
-        run: flutter build web --release --base-href "${{ env.BASE_HREF }}"
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: build/web
-
-  deploy:
-    needs: web-build
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-  # =========================
-  # Android: Robust Debug APK
-  # =========================
+  # ---------- ANDROID ----------
   android-build:
+    name: Build Android APK
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Java 17 (AGP requirement)
+      - name: Set up Java ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ env.JAVA_VERSION }}
 
-      # Proper Android SDK install + license acceptance
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Set up Flutter
+      - name: Set up Flutter (${{ env.FLUTTER_VERSION }})
         uses: subosito/flutter-action@v2
         with:
-          channel: ${{ env.FLUTTER_CHANNEL }}
+          channel: ${{ env.FLUTTER_VERSION }}
+          cache: true
 
-      - name: Doctor (pre)
+      - name: Flutter Doctor (pre)
         run: flutter doctor -v
-
-      - name: Clean Gradle & Flutter caches
-        run: |
-          flutter clean
-          rm -rf android/.gradle || true
-          rm -rf ~/.gradle/caches/ || true
-          rm -rf ~/.pub-cache || true
-
-      - name: Recreate Android scaffold (safe overwrite)
-        shell: bash
-        run: |
-          cp -r lib lib_backup 2>/dev/null || true
-          flutter create . --platforms=android --overwrite
-          git restore --source=HEAD -- lib || true
-          [ -d lib_backup ] && cp -rn lib_backup/* lib/ 2>/dev/null || true
-          rm -rf lib_backup
-          chmod +x android/gradlew || true
-
-      - name: Force minSdkVersion 21 (if template differs)
-        shell: bash
-        run: |
-          if [ -f android/app/build.gradle ]; then
-            sed -i 's/minSdkVersion *[0-9][0-9]*/minSdkVersion 21/g' android/app/build.gradle || true
-          fi
-
-      - name: Gradle sanity
-        run: ./android/gradlew -v || true
 
       - name: Pub get
         run: flutter pub get
 
+      # Build a debug APK to keep signing simple (installable)
       - name: Build Debug APK (verbose)
         run: flutter build apk --debug -v
 
-      - name: Upload APK artifact (14 days)
+      - name: Upload APK artifact (90 days)
         uses: actions/upload-artifact@v4
         with:
-          name: zeus_app_premium-debug.apk
+          name: ZEUS-Android-APK
           path: build/app/outputs/flutter-apk/app-debug.apk
-          retention-days: 14
+          retention-days: 90
 
-      - name: Doctor (post)
-        if: always()
-        run: flutter doctor -v
-
-  # =========================
-  # iOS: Compile (no codesign)
-  # =========================
+  # ---------- iOS (unsigned) ----------
   ios-build:
+    name: Build iOS (unsigned)
     runs-on: macos-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Flutter
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Flutter (${{ env.FLUTTER_VERSION }})
         uses: subosito/flutter-action@v2
         with:
-          channel: ${{ env.FLUTTER_CHANNEL }}
-
-      - name: Recreate iOS scaffold (safe overwrite)
-        shell: bash
-        run: |
-          cp -r lib lib_backup 2>/dev/null || true
-          flutter create . --platforms=ios --overwrite
-          git restore --source=HEAD -- lib || true
-          [ -d lib_backup ] && cp -rn lib_backup/* lib/ 2>/dev/null || true
-          rm -rf lib_backup
+          channel: ${{ env.FLUTTER_VERSION }}
+          cache: true
 
       - name: Pub get
         run: flutter pub get
 
       - name: Build iOS (no codesign)
         run: flutter build ios --no-codesign
+
+      - name: Upload iOS artifact (90 days)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZEUS-iOS-Unsigned
+          path: build/ios/iphoneos
+          retention-days: 90
+
+  # ---------- WEB (artifact) ----------
+  web-build:
+    name: Build Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Flutter (${{ env.FLUTTER_VERSION }})
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Ensure platforms exist
+        run: |
+          flutter config --enable-web
+          if [ ! -d "android" ]; then flutter create .; fi
+
+      - name: Pub get
+        run: flutter pub get
+
+      # Base href is needed for gh-pages "<org>.github.io/<repo>"
+      - name: Build Web (GitHub Pages base href)
+        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
+
+      - name: Upload Web artifact (90 days)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZEUS-Web
+          path: build/web
+          retention-days: 90
+
+      # Prepare a Pages artifact for optional deploy job
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  # ---------- OPTIONAL: Deploy to GitHub Pages ----------
+  web-deploy:
+    name: Deploy Web to GitHub Pages
+    needs: [web-build]
+    runs-on: ubuntu-latest
+    # Only try to deploy if the repo is public (private repos need Enterprise or org pages)
+    if: ${{ github.event.repository.private == false }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
