@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'theme.dart';
 import 'state/app_state.dart';
+
 import 'screens/splash_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/send_screen.dart';
@@ -18,13 +19,12 @@ import 'screens/about_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  AppState.instance.init(); // mock balances/limits
+  AppState.instance.init();
   runApp(const ZeusApp());
 }
 
 class ZeusApp extends StatelessWidget {
   const ZeusApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -33,6 +33,7 @@ class ZeusApp extends StatelessWidget {
       theme: buildZeusTheme(),
       home: const SplashScreen(next: HomeScreen()),
       routes: {
+        HomeScreen.route: (_) => const HomeScreen(),
         SendScreen.route: (_) => const SendScreen(),
         TransactionsScreen.route: (_) => const TransactionsScreen(),
         ReceiptScreen.route: (_) => const ReceiptScreen(),
@@ -49,5 +50,3 @@ class ZeusApp extends StatelessWidget {
     );
   }
 }
-
-
