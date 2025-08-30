@@ -1,148 +1,89 @@
-name: ZEUS CI/CD (Android + iOS + Web)
+name: ZEUS CI/CD
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  id-token: write        # needed for pages deploy
-  pages: write           # needed for pages deploy
-
-concurrency:
-  group: zeus-build-${{ github.ref }}
-  cancel-in-progress: false
-
-env:
-  FLUTTER_VERSION: stable
-  JAVA_VERSION: '17'
-  ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
 
 jobs:
-  # ---------- ANDROID ----------
-  android-build:
-    name: Build Android APK
+  web-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Java ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-
-      - name: Set up Flutter (${{ env.FLUTTER_VERSION }})
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: ${{ env.FLUTTER_VERSION }}
-          cache: true
+          channel: stable
 
-      - name: Flutter Doctor (pre)
-        run: flutter doctor -v
-
-      - name: Pub get
+      - name: Install dependencies
         run: flutter pub get
 
-      # Build a debug APK to keep signing simple (installable)
-      - name: Build Debug APK (verbose)
-        run: flutter build apk --debug -v
+      - name: Build Web (GitHub Pages base href)
+        run: flutter build web --release --base-href="/zeus_app_premium/"
 
-      - name: Upload APK artifact (90 days)
-        uses: actions/upload-artifact@v4
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v2
         with:
-          name: ZEUS-Android-APK
-          path: build/app/outputs/flutter-apk/app-debug.apk
-          retention-days: 90
+          path: build/web
 
-  # ---------- iOS (unsigned) ----------
+  android-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Debug APK
+        run: flutter build apk --debug
+
+      - name: Upload APK artifact (14 days)
+        uses: actions/upload-artifact@v3
+        with:
+          name: zeus-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14
+
   ios-build:
-    name: Build iOS (unsigned)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Java ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-
-      - name: Set up Flutter (${{ env.FLUTTER_VERSION }})
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: ${{ env.FLUTTER_VERSION }}
-          cache: true
+          channel: stable
 
-      - name: Pub get
+      - name: Install dependencies
         run: flutter pub get
 
-      - name: Build iOS (no codesign)
-        run: flutter build ios --no-codesign
+      - name: Build iOS (simulator only)
+        run: flutter build ios --debug --no-codesign
 
-      - name: Upload iOS artifact (90 days)
-        uses: actions/upload-artifact@v4
-        with:
-          name: ZEUS-iOS-Unsigned
-          path: build/ios/iphoneos
-          retention-days: 90
-
-  # ---------- WEB (artifact) ----------
-  web-build:
-    name: Build Web
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Java ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-
-      - name: Set up Flutter (${{ env.FLUTTER_VERSION }})
-        uses: subosito/flutter-action@v2
-        with:
-          channel: ${{ env.FLUTTER_VERSION }}
-          cache: true
-
-      - name: Ensure platforms exist
-        run: |
-          flutter config --enable-web
-          if [ ! -d "android" ]; then flutter create .; fi
-
-      - name: Pub get
-        run: flutter pub get
-
-      # Base href is needed for gh-pages "<org>.github.io/<repo>"
-      - name: Build Web (GitHub Pages base href)
-        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/"
-
-      - name: Upload Web artifact (90 days)
-        uses: actions/upload-artifact@v4
-        with:
-          name: ZEUS-Web
-          path: build/web
-          retention-days: 90
-
-      # Prepare a Pages artifact for optional deploy job
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: build/web
-
-  # ---------- OPTIONAL: Deploy to GitHub Pages ----------
-  web-deploy:
-    name: Deploy Web to GitHub Pages
-    needs: [web-build]
-    runs-on: ubuntu-latest
-    # Only try to deploy if the repo is public (private repos need Enterprise or org pages)
-    if: ${{ github.event.repository.private == false }}
+  deploy:
+    needs: web-build
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
     steps:
-      - name: Deploy to Pages
+      - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v2
