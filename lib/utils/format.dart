@@ -1,20 +1,14 @@
 import 'package:intl/intl.dart';
 
-String fmt(String code, num amount) {
-  switch (code) {
-    case 'NGN':
-      return '₦${NumberFormat('#,##0.00').format(amount)}';
-    case 'USD':
-      return 'USD \$${NumberFormat('#,##0.00').format(amount)}';
-    case 'EUR':
-      return '€${NumberFormat('#,##0.00').format(amount)}';
-    case 'GBP':
-      return '£${NumberFormat('#,##0.00').format(amount)}';
-    case 'GHC':
-      return 'GH₵${NumberFormat('#,##0.00').format(amount)}';
-    case 'KSH':
-      return 'KSh ${NumberFormat('#,##0.00').format(amount)}';
-    default:
-      return '${NumberFormat('#,##0.00').format(amount)} $code';
+final _ngn = NumberFormat.currency(locale: 'en_NG', symbol: '₦', decimalDigits: 2);
+final _usd = NumberFormat.currency(locale: 'en_US', symbol: '\$', decimalDigits: 2);
+final _eur = NumberFormat.currency(locale: 'en_IE', symbol: '€', decimalDigits: 2);
+
+String money(String ccy, num v) {
+  switch (ccy) {
+    case 'NGN': return _ngn.format(v);
+    case 'USD': return _usd.format(v);
+    case 'EUR': return _eur.format(v);
+    default: return NumberFormat.currency(symbol: '$ccy ').format(v);
   }
 }
