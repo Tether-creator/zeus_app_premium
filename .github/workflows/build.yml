@@ -2,88 +2,62 @@ name: ZEUS CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   web-build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
         with:
           channel: stable
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build Web (GitHub Pages base href)
-        run: flutter build web --release --base-href="/zeus_app_premium/"
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v2
+      - run: flutter pub get
+      - run: flutter build web --release --base-href="/zeus_app_premium/"
+      - uses: actions/upload-artifact@v4
         with:
+          name: web-build
           path: build/web
 
   android-build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
         with:
           channel: stable
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build Debug APK
-        run: flutter build apk --debug
-
-      - name: Upload APK artifact (14 days)
-        uses: actions/upload-artifact@v3
+      - run: flutter pub get
+      - run: flutter build apk --debug
+      - uses: actions/upload-artifact@v4
         with:
-          name: zeus-apk
+          name: android-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
-          retention-days: 14
 
   ios-build:
     runs-on: macos-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
         with:
           channel: stable
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Build iOS (simulator only)
-        run: flutter build ios --debug --no-codesign
+      - run: flutter pub get
+      - run: flutter build ios --no-codesign
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: build/ios/iphoneos
 
   deploy:
-    needs: web-build
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    needs: web-build
     steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: web-build
+          path: build/web
       - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v2
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: build/web
