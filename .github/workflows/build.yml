@@ -5,68 +5,86 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+# Prevent overlapping runs on the same branch
+concurrency:
+  group: zeus-${{ github.ref }}
+  cancel-in-progress: true
+
+# Needed if we deploy GitHub Pages (safe for private repos; job is conditional)
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
+env:
+  REPO_NAME: zeus_app_premium
+  FLUTTER_VERSION: "3.19.6"      # Stable, widely-compatible
+  JAVA_VERSION: "17"             # Required by recent Android Gradle Plugin
+
 jobs:
   web-build:
+    name: Build Web (GH Pages base href)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
 
-      - name: Ensure platforms exist (web)
-        run: |
-          if [ ! -d "web" ]; then
-            flutter create . --platforms web
-          fi
+      - name: Ensure web platform exists
+        run: flutter create . --platforms=web
 
       - name: Pub get
         run: flutter pub get
 
-      - name: Build Web (GitHub Pages base href)
-        run: flutter build web --release --base-href="/zeus_app_premium/"
+      - name: Build Web (release)
+        run: flutter build web --release --base-href="/${{ env.REPO_NAME }}/"
 
+      # Keep a copy to download as a regular artifact (14 days)
+      - name: Upload Web build (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZEUS-Web-build
+          path: build/web
+          retention-days: 14
+
+      # Upload a special Pages artifact used only if repo is public
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: build/web
 
   android-build:
+    name: Build Android APK
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Java 17 (AGP requirement)
-        uses: actions/setup-java@v4
+      - name: Set up Java ${{ env.JAVA_VERSION }} (AGP requirement)
+        uses: actions/setup-java@v3
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ env.JAVA_VERSION }}
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
 
-      - name: Ensure platforms exist (android)
-        run: |
-          if [ ! -d "android" ]; then
-            flutter create . --platforms android
-          fi
+      - name: Ensure Android platform exists
+        run: flutter create . --platforms=android
 
       - name: Pub get
         run: flutter pub get
 
-      - name: Build Debug APK
-        run: flutter build apk --debug
+      - name: Build Debug APK (verbose)
+        run: flutter build apk --debug -v
 
       - name: Upload APK artifact (14 days)
         uses: actions/upload-artifact@v4
@@ -76,31 +94,46 @@ jobs:
           retention-days: 14
 
   ios-build:
+    # Building iOS requires macOS runners
+    name: Build iOS (no codesign)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
 
-      - name: Ensure platforms exist (ios)
-        run: |
-          if [ ! -d "ios" ]; then
-            flutter create . --platforms ios
-          fi
+      - name: Ensure iOS platform exists
+        run: flutter create . --platforms=ios
 
       - name: Pub get
         run: flutter pub get
 
+      # No signing: produces a Simulator .app you can download & open in Xcode
       - name: Build iOS (no codesign)
-        run: flutter build ios --no-codesign
+        run: flutter build ios --no-codesign -v
+
+      - name: Upload iOS app (artifact, 14 days)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZEUS-iOS-app
+          path: build/ios/iphonesimulator/*.app
+          retention-days: 14
 
   deploy:
-    needs: [web-build]
+    name: Deploy Web to GitHub Pages
+    needs: [ web-build ]
     runs-on: ubuntu-latest
+    # Only run deploy automatically if the repo is PUBLIC
+    if: ${{ github.repository_visibility == 'public' }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
