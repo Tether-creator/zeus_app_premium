@@ -1,17 +1,11 @@
 import 'package:flutter/material.dart';
-import '../theme.dart';
-import 'wallet_screen.dart';
-import 'transactions_screen.dart';
 import 'send_screen.dart';
-import 'airtime_screen.dart';
-import 'data_screen.dart';
-import 'bills_screen.dart';
+import 'transactions_screen.dart';
 import 'convert_screen.dart';
-import 'add_money_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  static const route = '/';
   const HomeScreen({super.key});
+  static const route = '/home';
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -19,59 +13,66 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
-
-  final _tabs = const [
-    WalletScreen(),
+  final _pages = const [
+    _Dashboard(),
     TransactionsScreen(),
-    AddMoneyScreen(),
+    ConvertScreen(),
   ];
-
-  void _onTap(int i) => setState(() => _index = i);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _tabs[_index],
+      appBar: AppBar(title: const Text('ZEUS Premium')),
+      body: _pages[_index],
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.pushNamed(context, SendScreen.route),
+        label: const Text('Send'),
+        icon: const Icon(Icons.send),
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,
-        onTap: _onTap,
+        onTap: (i) => setState(() => _index = i),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: 'Wallet'),
+          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.add_card), label: 'Add Money'),
+          BottomNavigationBarItem(icon: Icon(Icons.swap_horiz), label: 'Convert'),
         ],
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 74),
-        child: _QuickActionsRow(),
       ),
     );
   }
 }
 
-class _QuickActionsRow extends StatelessWidget {
+class _Dashboard extends StatelessWidget {
+  const _Dashboard();
+
   @override
   Widget build(BuildContext context) {
-    final chip = (IconData icon, String label, VoidCallback onTap) => ActionChip(
-          avatar: Icon(icon, color: Colors.black),
-          backgroundColor: ZeusColors.gold,
-          label: Text(label, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600)),
-          onPressed: onTap,
-        );
-
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 10,
-      runSpacing: 10,
+    return ListView(
+      padding: const EdgeInsets.all(16),
       children: [
-        chip(Icons.send, 'Send', () => Navigator.pushNamed(context, SendScreen.route)),
-        chip(Icons.swap_horiz, 'Convert', () => Navigator.pushNamed(context, ConvertScreen.route)),
-        chip(Icons.phone_android, 'Airtime', () => Navigator.pushNamed(context, AirtimeScreen.route)),
-        chip(Icons.wifi, 'Data', () => Navigator.pushNamed(context, DataScreen.route)),
-        chip(Icons.receipt, 'Bills', () => Navigator.pushNamed(context, BillsScreen.route)),
-        chip(Icons.add_card, 'Add Money', () => Navigator.pushNamed(context, AddMoneyScreen.route)),
+        _Tile(icon: Icons.phone_android, title: 'Airtime Purchase', onTap: () => Navigator.pushNamed(context, '/airtime')),
+        _Tile(icon: Icons.network_cell, title: 'Data Purchase', onTap: () => Navigator.pushNamed(context, '/data')),
+        _Tile(icon: Icons.receipt, title: 'Bill Payment', onTap: () => Navigator.pushNamed(context, '/bills')),
+        _Tile(icon: Icons.account_balance_wallet, title: 'Add Money', onTap: () => Navigator.pushNamed(context, '/add-money')),
+        _Tile(icon: Icons.person_add, title: 'Open Account', onTap: () => Navigator.pushNamed(context, '/account-open')),
+        _Tile(icon: Icons.support_agent, title: 'Customer Care', onTap: () => Navigator.pushNamed(context, '/customer-care')),
+        _Tile(icon: Icons.settings, title: 'Settings', onTap: () => Navigator.pushNamed(context, '/settings')),
+        _Tile(icon: Icons.info, title: 'About', onTap: () => Navigator.pushNamed(context, '/about')),
       ],
+    );
+  }
+}
+
+class _Tile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+  const _Tile({required this.icon, required this.title, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(leading: Icon(icon), title: Text(title), trailing: const Icon(Icons.chevron_right), onTap: onTap),
     );
   }
 }
