@@ -1,22 +1,7 @@
 import 'package:flutter/material.dart';
-
 class SettingsScreen extends StatelessWidget {
-  static const route = '/settings';
   const SettingsScreen({super.key});
-
+  static const route = '/settings';
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        children: const [
-          ListTile(title: Text("Enable Biometrics (mock toggle)")),
-          ListTile(title: Text("Linked Cards")),
-          ListTile(title: Text("POS Devices")),
-          ListTile(title: Text("Language")),
-          ListTile(title: Text("Logout")),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('Settings')), body: const Center(child: Text('Limits • Security • Theme')));
 }
