@@ -1,35 +1,55 @@
-// lib/screens/receipt_screen.dart
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import '../theme.dart';
-import '../services/receipt_pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import '../utils/format.dart';
 
 class ReceiptScreen extends StatelessWidget {
+  const ReceiptScreen({super.key});
   static const route = '/receipt';
-  final ZeusReceiptData receipt;
 
-  const ReceiptScreen({super.key, required this.receipt});
+  Future<Uint8List> _buildPdf(Map data) async {
+    final pdf = pw.Document();
+    final ccy = data['ccy'] as String;
+    final amt = data['amt'] as double;
+    pdf.addPage(
+      pw.Page(
+        build: (c) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text('ZEUS Premium Receipt', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 8),
+            pw.Text('Reference: ${data['ref']}'),
+            pw.Text('Beneficiary: ${data['to']}'),
+            pw.Text('Channel: ${data['bank']}'),
+            pw.SizedBox(height: 12),
+            pw.Text('Amount: ${money(ccy, amt)}'),
+            pw.SizedBox(height: 24),
+            pw.Text('Thank you for using ZEUS.', style: const pw.TextStyle(fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+    return pdf.save();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final args = ModalRoute.of(context)!.settings.arguments as Map? ?? {};
     return Scaffold(
-      backgroundColor: ZeusColors.background,
-      appBar: AppBar(title: const Text('Transaction Receipt')),
-      body: Center(
+      appBar: AppBar(title: const Text('Receipt')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo + success text (your existing UI) …
-            const SizedBox(height: 18),
-            FilledButton(
-              onPressed: () async {
-                await ReceiptPdfService.share(receipt);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Receipt ready — check your download/share dialog.')),
-                  );
-                }
-              },
-              child: const Text('Download / Share PDF'),
+            Expanded(
+              child: PdfPreview(
+                build: (_) => _buildPdf(args),
+                canChangePageFormat: false,
+                canChangeOrientation: false,
+                allowPrinting: true,
+                allowSharing: true,
+              ),
             ),
           ],
         ),
