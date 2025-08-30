@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
-import 'send_screen.dart';
+import '../state/app_state.dart';
+import '../utils/format.dart';
 import 'transactions_screen.dart';
 import 'convert_screen.dart';
+import 'send_screen.dart';
+import 'airtime_screen.dart';
+import 'data_screen.dart';
+import 'bills_screen.dart';
+import 'add_money_screen.dart';
+import 'account_opening_screen.dart';
+import 'customer_care_screen.dart';
+import 'settings_screen.dart';
+import 'about_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
   static const route = '/home';
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -21,22 +30,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('ZEUS Premium')),
-      body: _pages[_index],
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.pushNamed(context, SendScreen.route),
-        label: const Text('Send'),
-        icon: const Icon(Icons.send),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _index,
-        onTap: (i) => setState(() => _index = i),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'History'),
-          BottomNavigationBarItem(icon: Icon(Icons.swap_horiz), label: 'Convert'),
-        ],
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: Scaffold(
+        key: ValueKey(_index),
+        appBar: AppBar(title: const Text('ZEUS Premium')),
+        body: _pages[_index],
+        floatingActionButton: _index == 0
+            ? FloatingActionButton.extended(
+                onPressed: () => Navigator.pushNamed(context, SendScreen.route),
+                label: const Text('Send'),
+                icon: const Icon(Icons.send),
+              )
+            : null,
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: _index,
+          onTap: (i) => setState(() => _index = i),
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
+            BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'History'),
+            BottomNavigationBarItem(icon: Icon(Icons.swap_horiz), label: 'Convert'),
+          ],
+        ),
       ),
     );
   }
@@ -47,32 +62,75 @@ class _Dashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = AppState.instance;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _Tile(icon: Icons.phone_android, title: 'Airtime Purchase', onTap: () => Navigator.pushNamed(context, '/airtime')),
-        _Tile(icon: Icons.network_cell, title: 'Data Purchase', onTap: () => Navigator.pushNamed(context, '/data')),
-        _Tile(icon: Icons.receipt, title: 'Bill Payment', onTap: () => Navigator.pushNamed(context, '/bills')),
-        _Tile(icon: Icons.account_balance_wallet, title: 'Add Money', onTap: () => Navigator.pushNamed(context, '/add-money')),
-        _Tile(icon: Icons.person_add, title: 'Open Account', onTap: () => Navigator.pushNamed(context, '/account-open')),
-        _Tile(icon: Icons.support_agent, title: 'Customer Care', onTap: () => Navigator.pushNamed(context, '/customer-care')),
-        _Tile(icon: Icons.settings, title: 'Settings', onTap: () => Navigator.pushNamed(context, '/settings')),
-        _Tile(icon: Icons.info, title: 'About', onTap: () => Navigator.pushNamed(context, '/about')),
+        Row(
+          children: [
+            Expanded(child: _balanceCard('NGN', money('NGN', s.naira))),
+            const SizedBox(width: 12),
+            Expanded(child: _balanceCard('USD', money('USD', s.usd))),
+            const SizedBox(width: 12),
+            Expanded(child: _balanceCard('EUR', money('EUR', s.eur))),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: const [
+            _QuickTile(icon: Icons.phone_android, title: 'Airtime', route: '/airtime'),
+            _QuickTile(icon: Icons.network_cell, title: 'Data', route: '/data'),
+            _QuickTile(icon: Icons.receipt, title: 'Bills', route: '/bills'),
+            _QuickTile(icon: Icons.account_balance_wallet, title: 'Add Money', route: '/add-money'),
+            _QuickTile(icon: Icons.person_add, title: 'Open Account', route: '/account-open'),
+            _QuickTile(icon: Icons.support_agent, title: 'Customer Care', route: '/customer-care'),
+            _QuickTile(icon: Icons.settings, title: 'Settings', route: '/settings'),
+            _QuickTile(icon: Icons.info, title: 'About', route: '/about'),
+          ],
+        ),
       ],
+    );
+  }
+
+  Widget _balanceCard(String label, String amt) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: const TextStyle(fontSize: 13, color: Colors.white70)),
+          const SizedBox(height: 8),
+          Text(amt, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+        ]),
+      ),
     );
   }
 }
 
-class _Tile extends StatelessWidget {
+class _QuickTile extends StatelessWidget {
   final IconData icon;
   final String title;
-  final VoidCallback onTap;
-  const _Tile({required this.icon, required this.title, required this.onTap});
-
+  final String route;
+  const _QuickTile({required this.icon, required this.title, required this.route});
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(leading: Icon(icon), title: Text(title), trailing: const Icon(Icons.chevron_right), onTap: onTap),
+    return InkWell(
+      onTap: () => Navigator.pushNamed(context, route),
+      child: Container(
+        width: 160,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF151515),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Row(children: [
+          Icon(icon),
+          const SizedBox(width: 10),
+          Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
+        ]),
+      ),
     );
   }
 }
