@@ -1,57 +1,32 @@
 name: zeus_app_premium
-description: ZEUS Premium Wallet & Banking App
+description: ZEUS Premium – clean, clickable demo with receipts, bottom nav, splash.
 publish_to: "none"
-version: 1.0.0+1
 
 environment:
-  sdk: ">=3.3.0 <4.0.0"
+  sdk: ">=3.4.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-
-  # Core features
-  http: ^1.2.0
-  provider: ^6.1.2
   intl: ^0.19.0
+  collection: ^1.18.0
 
-  # UI & Navigation
-  google_fonts: ^6.2.1
-  flutter_svg: ^2.0.10
-  animations: ^2.0.11
-
-  # Receipts & PDF
+  # PDF receipt + printing (works on web with Flutter 3.22+)
   pdf: ^3.11.0
   printing: ^5.13.1
+
+  # Share & file save (web-friendly)
   share_plus: ^10.0.2
-  path_provider: ^2.1.4
-
-  # Nigerian banking utils
-  nigeria_banks: ^1.0.1   # supports bank code/name lookups
-  phone_number: ^1.0.0    # for validating Nigerian numbers
-
-  # Biometrics & Security
-  local_auth: ^2.3.0
-  encrypt: ^5.0.3
-
-  # Payments & conversions
-  flutterwave_standard: ^1.0.8
-  currency_text_input_formatter: ^2.2.4
-
-  # State Management
-  flutter_bloc: ^9.0.0
-  equatable: ^2.0.7
+  file_saver: ^0.2.13
+  url_launcher: ^6.3.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
+  flutter_lints: ^4.0.0
 
 flutter:
   uses-material-design: true
-
   assets:
     - assets/images/zeus_logo.png
-    - assets/icons/
-    - assets/fonts/
