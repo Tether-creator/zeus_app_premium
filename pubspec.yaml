@@ -1,6 +1,8 @@
 name: zeus_app_premium
-description: ZEUS Premium – clean, clickable demo with receipts, bottom nav, splash.
+description: ZEUS Premium – fintech superapp demo
 publish_to: "none"
+
+version: 1.0.0+3
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -8,18 +10,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^1.0.6
   intl: ^0.19.0
-  collection: ^1.18.0
-
-  # PDF receipt + printing (works on web with Flutter 3.22+)
-  pdf: ^3.11.0
-  printing: ^5.13.1
-
-  # Share & file save (web-friendly)
-  share_plus: ^10.0.2
-  file_saver: ^0.2.13
+  http: ^1.2.2
   url_launcher: ^6.3.0
+  shared_preferences: ^2.3.2
+  path_provider: ^2.1.4
+  pdf: ^3.10.7
+  printing: ^5.13.1
 
 dev_dependencies:
   flutter_test:
@@ -30,3 +28,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/zeus_logo.png
+    - assets/data/banks_ng.json
+
