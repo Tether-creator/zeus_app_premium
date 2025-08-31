@@ -1,134 +1,65 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../state/app_state.dart';
-import '../utils/format.dart';
-import 'transactions_screen.dart';
-import 'convert_screen.dart';
-import 'send_screen.dart';
-import 'airtime_screen.dart';
-import 'data_screen.dart';
-import 'bills_screen.dart';
 import 'add_money_screen.dart';
-import 'account_opening_screen.dart';
-import 'customer_care_screen.dart';
-import 'settings_screen.dart';
-import 'about_screen.dart';
+import 'send_screen.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
-  static const route = '/home';
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  int _index = 0;
-  final _pages = const [
-    _Dashboard(),
-    TransactionsScreen(),
-    ConvertScreen(),
-  ];
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key, required this.state});
+  final AppState state;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 250),
-      child: Scaffold(
-        key: ValueKey(_index),
-        appBar: AppBar(title: const Text('ZEUS Premium')),
-        body: _pages[_index],
-        floatingActionButton: _index == 0
-            ? FloatingActionButton.extended(
-                onPressed: () => Navigator.pushNamed(context, SendScreen.route),
-                label: const Text('Send'),
-                icon: const Icon(Icons.send),
-              )
-            : null,
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _index,
-          onTap: (i) => setState(() => _index = i),
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
-            BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'History'),
-            BottomNavigationBarItem(icon: Icon(Icons.swap_horiz), label: 'Convert'),
-          ],
-        ),
+    final ngn = NumberFormat.currency(locale: 'en_NG', symbol: '₦');
+    Widget wallet(String label, String cur, double amt) => Card(
+      child: ListTile(
+        title: Text(label),
+        subtitle: Text(cur),
+        trailing: Text(cur=='NGN' ? ngn.format(amt) : '$cur ${amt.toStringAsFixed(2)}',
+            style: const TextStyle(fontWeight: FontWeight.w700)),
+      ),
+    );
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('ZEUS Premium')),
+      body: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          wallet('Naira Wallet', 'NGN', state.ngn),
+          wallet('Dollar Wallet', 'USD', state.usd),
+          wallet('Euro Wallet', 'EUR', state.eur),
+          wallet('Kenya Wallet', 'KES', state.kes),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12, runSpacing: 12,
+            children: [
+              _quick(context, Icons.add_card, 'Add Money', () => Navigator.pushNamed(context, AddMoneyScreen.route)),
+              _quick(context, Icons.send, 'Send', () => Navigator.pushNamed(context, SendScreen.route)),
+              _quick(context, Icons.phone_android, 'Airtime', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Airtime (demo)')))),
+              _quick(context, Icons.network_check, 'Data', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Data (demo)')))),
+              _quick(context, Icons.receipt_long, 'Bills', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bills (demo)')))),
+              _quick(context, Icons.support_agent, 'Support', () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Customer care (demo)')))),
+            ],
+          ),
+        ],
       ),
     );
   }
-}
 
-class _Dashboard extends StatelessWidget {
-  const _Dashboard();
-
-  @override
-  Widget build(BuildContext context) {
-    final s = AppState.instance;
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Row(
-          children: [
-            Expanded(child: _balanceCard('NGN', money('NGN', s.naira))),
-            const SizedBox(width: 12),
-            Expanded(child: _balanceCard('USD', money('USD', s.usd))),
-            const SizedBox(width: 12),
-            Expanded(child: _balanceCard('EUR', money('EUR', s.eur))),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: const [
-            _QuickTile(icon: Icons.phone_android, title: 'Airtime', route: '/airtime'),
-            _QuickTile(icon: Icons.network_cell, title: 'Data', route: '/data'),
-            _QuickTile(icon: Icons.receipt, title: 'Bills', route: '/bills'),
-            _QuickTile(icon: Icons.account_balance_wallet, title: 'Add Money', route: '/add-money'),
-            _QuickTile(icon: Icons.person_add, title: 'Open Account', route: '/account-open'),
-            _QuickTile(icon: Icons.support_agent, title: 'Customer Care', route: '/customer-care'),
-            _QuickTile(icon: Icons.settings, title: 'Settings', route: '/settings'),
-            _QuickTile(icon: Icons.info, title: 'About', route: '/about'),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _balanceCard(String label, String amt) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: const TextStyle(fontSize: 13, color: Colors.white70)),
-          const SizedBox(height: 8),
-          Text(amt, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-        ]),
-      ),
-    );
-  }
-}
-
-class _QuickTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String route;
-  const _QuickTile({required this.icon, required this.title, required this.route});
-  @override
-  Widget build(BuildContext context) {
+  Widget _quick(BuildContext c, IconData i, String t, VoidCallback onTap) {
     return InkWell(
-      onTap: () => Navigator.pushNamed(context, route),
+      onTap: onTap,
       child: Container(
-        width: 160,
-        padding: const EdgeInsets.all(14),
+        width: (MediaQuery.of(c).size.width - 48) / 2,
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF151515),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white10),
+          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xFF1F2024),
         ),
-        child: Row(children: [
-          Icon(icon),
-          const SizedBox(width: 10),
-          Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
+        child: Column(children: [
+          Icon(i, size: 28, color: const Color(0xFFE5C063)),
+          const SizedBox(height: 8),
+          Text(t),
         ]),
       ),
     );
