@@ -1,23 +1,16 @@
 name: zeus_app_premium
-description: ZEUS Premium – fintech superapp demo
+description: ZEUS Premium – clickable, multi-platform fintech demo
 publish_to: "none"
 
-version: 1.0.0+3
-
 environment:
-  sdk: ">=3.4.0 <4.0.0"
+  sdk: ">=3.3.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.6
+  cupertino_icons: ^1.0.8
+  provider: ^6.1.2
   intl: ^0.19.0
-  http: ^1.2.2
-  url_launcher: ^6.3.0
-  shared_preferences: ^2.3.2
-  path_provider: ^2.1.4
-  pdf: ^3.10.7
-  printing: ^5.13.1
 
 dev_dependencies:
   flutter_test:
@@ -26,7 +19,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
   assets:
     - assets/images/zeus_logo.png
-    - assets/data/banks_ng.json
-
+    - assets/data/nigeria_banks.json
