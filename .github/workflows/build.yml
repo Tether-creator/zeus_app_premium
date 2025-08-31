@@ -2,116 +2,52 @@ name: ZEUS CI/CD
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-env:
-  APP_NAME: zeus_app_premium
-  WEB_BASE_HREF: /zeus_app_premium/
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   web-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Java 17 (AGP requirement)
-        uses: actions/setup-java@v4
+      - uses: subosito/flutter-action@v2
         with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Set up Flutter 3.22.2
-        uses: subosito/flutter-action@v2
+          flutter-version: "3.22.2"
+      - run: flutter pub get
+      - run: flutter create . --platforms web
+      - run: flutter build web --release --base-href="/zeus_app_premium/"
+      - uses: actions/upload-artifact@v4
         with:
-          flutter-version: '3.22.2'
-          channel: 'stable'
-          cache: true
-
-      - name: Ensure platforms exist (web, android, ios)
-        run: |
-          flutter --version
-          flutter create . --platforms web,android,ios --project-name $APP_NAME
-
-      - name: Pub get
-        run: flutter pub get
-
-      - name: Build Web (GitHub Pages base href)
-        run: flutter build web --release --base-href="$WEB_BASE_HREF"
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
+          name: web-build
           path: build/web
 
   android-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Java 17 (AGP requirement)
-        uses: actions/setup-java@v4
+      - uses: subosito/flutter-action@v2
         with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Set up Flutter 3.22.2
-        uses: subosito/flutter-action@v2
+          flutter-version: "3.22.2"
+      - run: flutter pub get
+      - run: flutter create . --platforms android
+      - run: flutter build apk --debug
+      - uses: actions/upload-artifact@v4
         with:
-          flutter-version: '3.22.2'
-          channel: 'stable'
-          cache: true
-
-      - name: Ensure Android platform exists (safe)
-        run: flutter create . --platforms android --project-name $APP_NAME
-
-      - name: Pub get
-        run: flutter pub get
-
-      - name: Build Debug APK (verbose)
-        run: flutter build apk --debug -v
-
-      - name: Upload APK artifact (14 days)
-        uses: actions/upload-artifact@v4
-        with:
-          name: ZEUS-debug-apk
+          name: android-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
-          retention-days: 14
 
   ios-build:
-    runs-on: macos-13
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Flutter 3.22.2
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.2'
-          channel: 'stable'
-          cache: true
-
-      - name: Ensure iOS platform exists (safe)
-        run: flutter create . --platforms ios --project-name $APP_NAME
-
-      - name: Pub get
-        run: flutter pub get
-
-      - name: Build iOS (no codesign)
-        run: flutter build ios --no-codesign
-
-      - name: Upload iOS build artifact (xArchive) (14 days)
-        uses: actions/upload-artifact@v4
+          flutter-version: "3.22.2"
+      - run: flutter pub get
+      - run: flutter create . --platforms ios
+      - run: flutter build ios --no-codesign
+      - uses: actions/upload-artifact@v4
         with:
-          name: ZEUS-ios-build
-          path: build/ios/**
-          retention-days: 14
-
-  deploy:
-    needs: web-build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v4
+          name: ios-build
+          path: build/ios/iphoneos
