@@ -1,124 +1,83 @@
-import 'package:flutter/foundation.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
 
-class TransactionItem {
-  final DateTime ts;
-  final String type;     // transfer | airtime | data | bill | convert | add
-  final String ccy;      // NGN | USD | EUR
-  final double amount;   // negative = debit, positive = credit
-  final String title;    // display name (beneficiary/provider)
-  final String channel;  // bank / card / provider / biller
-  final String ref;
-  const TransactionItem({
-    required this.ts,
-    required this.type,
-    required this.ccy,
-    required this.amount,
-    required this.title,
-    required this.channel,
-    required this.ref,
-  });
-}
-
-class AppState extends ChangeNotifier {
-  static final AppState instance = AppState._();
-  AppState._();
-
-  // Balances (mock, NGN is primary for transfers/billers)
-  double naira = 2_500_000;
-  double usd = 12_300;
-  double eur = 6_800;
+class AppState {
+  // Balances
+  double ngn = 250_000_000; // ₦
+  double usd = 150_000;      // $
+  double eur = 80_000;       // €
+  double kes = 10_000_000;   // KSh
 
   // Limits
-  double transferSingleLimit = 2_000_000;
-  double transferDailyLimit = 100_000_000;
+  static const double transferPerTxnNgn = 2_000_000;
+  static const double transferDailyNgn  = 100_000_000;
 
-  double airtimeSingle = 20_000;
-  double airtimeDaily = 100_000;
+  static const double airtimePerTxnNgn  = 20_000;
+  static const double airtimeDailyNgn   = 100_000;
 
-  double dataSingle = 20_000;
-  double dataDaily = 100_000;
+  static const double dataPerTxnNgn     = 20_000;
+  static const double dataDailyNgn      = 100_000;
 
-  double billerSingle = 100_000;
-  double billerDaily = 500_000;
+  static const double billPerTxnNgn     = 100_000;
+  static const double billDailyNgn      = 500_000;
 
-  // Running totals (reset daily in a real app)
-  double _todayTransfers = 0;
-  double _todayAirtime = 0;
-  double _todayData = 0;
-  double _todayBills = 0;
+  // Very light demo FX (replace with live rates later)
+  static const Map<String, double> fx = {
+    'NGNUSD': 0.00065,
+    'NGNEUR': 0.00060,
+    'NGNKES': 0.23,
+    'USDNGN': 1540.0,
+    'EURNGN': 1660.0,
+    'KESNGN': 4.3,
+  };
 
-  final List<TransactionItem> _tx = [];
-  List<TransactionItem> get transactions => List.unmodifiable(_tx);
+  // Local banks cache (demo)
+  List<Map<String, String>> banks = [];
 
-  void init() {}
-
-  bool _check(double amount, double single, double daily, double todays) {
-    return amount <= single && (todays + amount) <= daily;
+  Future<void> loadBanks() async {
+    if (banks.isNotEmpty) return;
+    final raw = await rootBundle.loadString('assets/data/banks_ng.json');
+    final list = List<Map<String, dynamic>>.from(jsonDecode(raw));
+    banks = list.map((e) => {'code': '${e['code']}', 'name': '${e['name']}'}).toList();
   }
 
-  bool canTransfer(double amount) => _check(amount, transferSingleLimit, transferDailyLimit, _todayTransfers);
-  bool canAirtime(double amount) => _check(amount, airtimeSingle, airtimeDaily, _todayAirtime);
-  bool canData(double amount) => _check(amount, dataSingle, dataDaily, _todayData);
-  bool canBills(double amount) => _check(amount, billerSingle, billerDaily, _todayBills);
-
-  String _ref(String prefix) => '$prefix-${DateTime.now().millisecondsSinceEpoch}';
-
-  void _pushTx(TransactionItem t) {
-    _tx.insert(0, t);
-    notifyListeners();
+  // Demo account-name "resolution" (deterministic mock)
+  Future<String> resolveAccountName(String accountNumber, String bankCode) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    final last4 = accountNumber.substring(accountNumber.length - 4);
+    return 'ZEUS USER $last4';
   }
 
-  // Money helpers
-  void debitNGN(double amount, {required String type, required String title, required String channel}) {
-    naira -= amount;
-    if (type == 'transfer') _todayTransfers += amount;
-    if (type == 'airtime') _todayAirtime += amount;
-    if (type == 'data') _todayData += amount;
-    if (type == 'bill') _todayBills += amount;
-
-    _pushTx(TransactionItem(
-      ts: DateTime.now(),
-      type: type,
-      ccy: 'NGN',
-      amount: -amount,
-      title: title,
-      channel: channel,
-      ref: _ref('ZEUS'),
-    ));
+  // Convert & debit/credit helpers
+  bool debit(String currency, double amount) {
+    final map = {'NGN': ngn, 'USD': usd, 'EUR': eur, 'KES': kes};
+    final current = map[currency] ?? 0;
+    if (current < amount) return false;
+    switch (currency) {
+      case 'NGN': ngn -= amount; break;
+      case 'USD': usd -= amount; break;
+      case 'EUR': eur -= amount; break;
+      case 'KES': kes -= amount; break;
+    }
+    return true;
   }
 
-  void creditNGN(double amount, {required String type, required String title, required String channel}) {
-    naira += amount;
-    _pushTx(TransactionItem(
-      ts: DateTime.now(),
-      type: type,
-      ccy: 'NGN',
-      amount: amount,
-      title: title,
-      channel: channel,
-      ref: _ref('ZEUS'),
-    ));
+  void credit(String currency, double amount) {
+    switch (currency) {
+      case 'NGN': ngn += amount; break;
+      case 'USD': usd += amount; break;
+      case 'EUR': eur += amount; break;
+      case 'KES': kes += amount; break;
+    }
   }
 
-  // FX convert
-  void convert({required String from, required String to, required double amount, required double rate}) {
-    if (from == 'NGN') naira -= amount;
-    if (from == 'USD') usd -= amount;
-    if (from == 'EUR') eur -= amount;
-
-    final got = amount * rate;
-    if (to == 'NGN') naira += got;
-    if (to == 'USD') usd += got;
-    if (to == 'EUR') eur += got;
-
-    _pushTx(TransactionItem(
-      ts: DateTime.now(),
-      type: 'convert',
-      ccy: to,
-      amount: got,
-      title: 'Convert $from→$to',
-      channel: 'FX Desk',
-      ref: _ref('FX'),
-    ));
+  bool convert(String from, String to, double amount) {
+    if (from == to) return true;
+    final key = '${from}${to}';
+    final rate = fx[key];
+    if (rate == null) return false;
+    if (!debit(from, amount)) return false;
+    credit(to, amount * rate);
+    return true;
   }
 }
