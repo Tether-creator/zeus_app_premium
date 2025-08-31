@@ -1,83 +1,147 @@
-import 'dart:convert';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 
-class AppState {
-  // Balances
-  double ngn = 250_000_000; // ₦
-  double usd = 150_000;      // $
-  double eur = 80_000;       // €
-  double kes = 10_000_000;   // KSh
+class AppState extends ChangeNotifier {
+  // Balances (demo only)
+  double ngnBalance = 5_000_000; // ₦5,000,000
+  double usdBalance = 8_500;     // $8,500
+  double eurBalance = 3_200;     // €3,200
+
+  // Running totals (reset with a "new day" in real backend)
+  double _spentTodayNGN = 0;
+  double _spentTodayAirtime = 0;
+  double _spentTodayData = 0;
+  double _spentTodayBills = 0;
 
   // Limits
-  static const double transferPerTxnNgn = 2_000_000;
-  static const double transferDailyNgn  = 100_000_000;
+  static const double transferPerTxLimitNGN = 2_000_000;
+  static const double transferDailyLimitNGN  = 100_000_000;
 
-  static const double airtimePerTxnNgn  = 20_000;
-  static const double airtimeDailyNgn   = 100_000;
+  static const double airtimePerTxLimitNGN = 20_000;
+  static const double airtimeDailyLimitNGN  = 100_000;
 
-  static const double dataPerTxnNgn     = 20_000;
-  static const double dataDailyNgn      = 100_000;
+  static const double dataPerTxLimitNGN = 20_000;
+  static const double dataDailyLimitNGN  = 100_000;
 
-  static const double billPerTxnNgn     = 100_000;
-  static const double billDailyNgn      = 500_000;
+  static const double billsPerTxLimitNGN = 100_000;
+  static const double billsDailyLimitNGN  = 500_000;
 
-  // Very light demo FX (replace with live rates later)
-  static const Map<String, double> fx = {
-    'NGNUSD': 0.00065,
-    'NGNEUR': 0.00060,
-    'NGNKES': 0.23,
-    'USDNGN': 1540.0,
-    'EURNGN': 1660.0,
-    'KESNGN': 4.3,
-  };
+  String get ngnFmt => NumberFormat.currency(locale: 'en_NG', symbol: '₦')
+      .format(ngnBalance);
 
-  // Local banks cache (demo)
-  List<Map<String, String>> banks = [];
-
-  Future<void> loadBanks() async {
-    if (banks.isNotEmpty) return;
-    final raw = await rootBundle.loadString('assets/data/banks_ng.json');
-    final list = List<Map<String, dynamic>>.from(jsonDecode(raw));
-    banks = list.map((e) => {'code': '${e['code']}', 'name': '${e['name']}'}).toList();
-  }
-
-  // Demo account-name "resolution" (deterministic mock)
-  Future<String> resolveAccountName(String accountNumber, String bankCode) async {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    final last4 = accountNumber.substring(accountNumber.length - 4);
-    return 'ZEUS USER $last4';
-  }
-
-  // Convert & debit/credit helpers
-  bool debit(String currency, double amount) {
-    final map = {'NGN': ngn, 'USD': usd, 'EUR': eur, 'KES': kes};
-    final current = map[currency] ?? 0;
-    if (current < amount) return false;
-    switch (currency) {
-      case 'NGN': ngn -= amount; break;
-      case 'USD': usd -= amount; break;
-      case 'EUR': eur -= amount; break;
-      case 'KES': kes -= amount; break;
-    }
+  // ---- limit guards (demo) ----
+  bool _checkAndDebitNGN(double amount,
+      {required double perTx, required double dailyCap, required double todaySpentBucket}) {
+    if (amount <= 0) return false;
+    if (amount > perTx) return false;
+    if ((todaySpentBucket + amount) > dailyCap) return false;
+    if (ngnBalance < amount) return false;
+    ngnBalance -= amount;
+    notifyListeners();
     return true;
   }
 
-  void credit(String currency, double amount) {
-    switch (currency) {
-      case 'NGN': ngn += amount; break;
-      case 'USD': usd += amount; break;
-      case 'EUR': eur += amount; break;
-      case 'KES': kes += amount; break;
+  // Public actions (simulate success: returns true/false)
+  bool sendTransfer(double amountNGN) {
+    final ok = _checkAndDebitNGN(
+      amountNGN,
+      perTx: transferPerTxLimitNGN,
+      dailyCap: transferDailyLimitNGN,
+      todaySpentBucket: _spentTodayNGN,
+    );
+    if (ok) _spentTodayNGN += amountNGN;
+    return ok;
+  }
+
+  bool buyAirtime(double amountNGN) {
+    final ok = _checkAndDebitNGN(
+      amountNGN,
+      perTx: airtimePerTxLimitNGN,
+      dailyCap: airtimeDailyLimitNGN,
+      todaySpentBucket: _spentTodayAirtime,
+    );
+    if (ok) _spentTodayAirtime += amountNGN;
+    return ok;
+  }
+
+  bool buyData(double amountNGN) {
+    final ok = _checkAndDebitNGN(
+      amountNGN,
+      perTx: dataPerTxLimitNGN,
+      dailyCap: dataDailyLimitNGN,
+      todaySpentBucket: _spentTodayData,
+    );
+    if (ok) _spentTodayData += amountNGN;
+    return ok;
+  }
+
+  bool payBill(double amountNGN) {
+    final ok = _checkAndDebitNGN(
+      amountNGN,
+      perTx: billsPerTxLimitNGN,
+      dailyCap: billsDailyLimitNGN,
+      todaySpentBucket: _spentTodayBills,
+    );
+    if (ok) _spentTodayBills += amountNGN;
+    return ok;
+  }
+
+  // FX conversions (very simple demo rates)
+  void convert(String from, String to, double amount) {
+    if (amount <= 0) return;
+    double ngn = ngnBalance, usd = usdBalance, eur = eurBalance;
+
+    // mock rates
+    const ngnPerUsd = 1500.0;
+    const ngnPerEur = 1600.0;
+
+    bool success = false;
+
+    switch ('$from-$to') {
+      case 'NGN-USD':
+        if (ngn >= amount) {
+          ngn -= amount;
+          usd += amount / ngnPerUsd;
+          success = true;
+        }
+        break;
+      case 'NGN-EUR':
+        if (ngn >= amount) {
+          ngn -= amount;
+          eur += amount / ngnPerEur;
+          success = true;
+        }
+        break;
+      case 'USD-NGN':
+        if (usd >= amount) {
+          usd -= amount;
+          ngn += amount * ngnPerUsd;
+          success = true;
+        }
+        break;
+      case 'EUR-NGN':
+        if (eur >= amount) {
+          eur -= amount;
+          ngn += amount * ngnPerEur;
+          success = true;
+        }
+        break;
+      default:
+        break;
+    }
+
+    if (success) {
+      ngnBalance = ngn;
+      usdBalance = usd;
+      eurBalance = eur;
+      notifyListeners();
     }
   }
 
-  bool convert(String from, String to, double amount) {
-    if (from == to) return true;
-    final key = '${from}${to}';
-    final rate = fx[key];
-    if (rate == null) return false;
-    if (!debit(from, amount)) return false;
-    credit(to, amount * rate);
-    return true;
+  // Top-up (card/bank/pos/cash) – mock credit
+  void addMoneyNGN(double amount) {
+    if (amount <= 0) return;
+    ngnBalance += amount;
+    notifyListeners();
   }
 }
